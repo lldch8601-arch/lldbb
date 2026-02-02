@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { ColumnGroup, TableRow } from '../types';
 
@@ -66,6 +65,10 @@ const TrendChart: React.FC<{ data: number[]; isMini?: boolean }> = ({ data, isMi
 };
 
 const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
+  // 🔧 修复1：给入参加兜底，避免App.tsx传递undefined
+  const safeGroups = groups || [];
+  const safeData = data || [];
+  
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [activeTrend, setActiveTrend] = useState<{ name: string; values: number[] } | null>(null);
@@ -90,8 +93,10 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
 
   const processedData = useMemo(() => {
     const processRows = (rows: TableRow[]): TableRow[] => {
-      const totalRow = rows.find(r => r.department === '汇总');
-      const normalRows = rows.filter(r => r.department !== '汇总');
+      // 🔧 修复2：给递归入参加兜底
+      const safeRows = rows || [];
+      const totalRow = safeRows.find(r => (r.department || '').includes('汇总'));
+      const normalRows = safeRows.filter(r => !(r.department || '').includes('汇总'));
 
       let processedNormalRows: TableRow[] = normalRows.map(row => {
         const nextLevelRows = row.subRows ? processRows(row.subRows) : [];
@@ -100,11 +105,12 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
 
       if (sortConfig && processedNormalRows.length > 0) {
         processedNormalRows.sort((a, b) => {
-          let aValue = a[sortConfig.key];
-          let bValue = b[sortConfig.key];
+          // 🔧 修复3：排序取值加可选链，避免字段不存在
+          let aValue = a?.[sortConfig.key];
+          let bValue = b?.[sortConfig.key];
 
-          const aNum = parseFloat(aValue);
-          const bNum = parseFloat(bValue);
+          const aNum = parseFloat(aValue || '');
+          const bNum = parseFloat(bValue || '');
 
           if (!isNaN(aNum) && !isNaN(bNum)) {
             aValue = aNum;
@@ -124,25 +130,26 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
       return totalRow ? [...processedNormalRows, totalRow] : processedNormalRows;
     };
 
-    return processRows(data);
-  }, [data, sortConfig]);
+    return processRows(safeData);
+  }, [safeData, sortConfig]);
 
   const formatValue = (row: TableRow, col: any) => {
-    const value = row[col.key];
-    const format = col.format;
+    const value = row?.[col.key];
+    const format = col?.format;
     
     if (format === 'trend') {
+      // 🔧 修复4：趋势图取值加可选链，更安全
       const trendData = [
-        Number(row['jan1Orders'] || 0),
-        Number(row['jan2Orders'] || 0),
-        Number(row['jan3Orders'] || 0),
-        Number(row['jan4Orders'] || 0),
-        Number(row['jan5Orders'] || 0)
+        Number(row?.['jan1Orders'] || 0),
+        Number(row?.['jan2Orders'] || 0),
+        Number(row?.['jan3Orders'] || 0),
+        Number(row?.['jan4Orders'] || 0),
+        Number(row?.['jan5Orders'] || 0)
       ];
       return (
         <div 
           className="cursor-zoom-in hover:scale-110 transition-transform flex justify-center py-1 group"
-          onClick={() => setActiveTrend({ name: row.department, values: trendData })}
+          onClick={() => setActiveTrend({ name: row?.department || '未知', values: trendData })}
         >
           <TrendChart data={trendData} />
         </div>
@@ -160,46 +167,48 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
   };
 
   const renderRow = (row: TableRow) => {
-    const is汇总 = row.department === '汇总';
-    const level = row.level || 0;
-    const hasSubRows = !!row.subRows && row.subRows.length > 0;
-    const isExpanded = expandedRows.has(row.department);
+    const deptName = row?.department || ''; // 🔧 修复5：提前兜底部门名称，避免后续重复判断
+    const is汇总 = deptName.includes('汇总');
+    const level = row?.level || 0;
+    const hasSubRows = !!row?.subRows && row.subRows.length > 0;
+    const isExpanded = expandedRows.has(deptName);
 
     return (
-      <React.Fragment key={`${row.department}-${level}`}>
+      <React.Fragment key={`${deptName}-${level}`}>
         <tr className={`${level > 0 ? 'bg-slate-50/30' : 'bg-white'} hover:bg-blue-50/50 transition-colors border-b border-slate-100`}>
-          {groups.flatMap(g => g.columns).map((col, colIdx) => {
+          {safeGroups.flatMap(g => g.columns).map((col, colIdx) => {
             const isDeptCol = col.key === 'department';
-            const isLossCol = col.header.includes('亏损');
+            // 🔧 修复6：亏损列判断加可选链+兜底，避免col.header为undefined
+            const isLossCol = (col?.header || '').includes('亏损');
             
-            const val = parseFloat(row[col.key]);
+            const val = parseFloat(row?.[col.key] || '');
             const isProfitAlarm = (col.key === 'profitRate' || col.key === 'actualProfitRate') && !isNaN(val) && val < 15;
             
             const paddingLeft = isDeptCol ? `${level * 24 + 10}px` : '10px';
 
             return (
               <td
-                key={`cell-${row.department}-${col.key}-${colIdx}`}
+                key={`cell-${deptName}-${col.key}-${colIdx}`}
                 style={isDeptCol ? { paddingLeft } : {}}
                 className={`p-2 border-r border-slate-100 truncate relative ${isDeptCol ? 'text-left' : 'text-center'} ${
                   is汇总 ? 'font-bold text-slate-800 bg-slate-100/30' : 'text-slate-600'
                 } ${ (isLossCol || isProfitAlarm) ? 'text-red-500 font-bold' : ''} ${!isDeptCol ? 'font-mono text-xs' : ''}`}
               >
                 {isDeptCol && hasSubRows ? (
-                  <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleRow(row.department)}>
+                  <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleRow(deptName)}>
                     <span className="text-blue-500 font-bold w-4 h-4 flex items-center justify-center border border-blue-200 rounded-sm bg-blue-50 text-[10px]">
                       {isExpanded ? '−' : '+'}
                     </span>
                     <span className={`${level === 0 ? 'font-bold text-slate-800 underline decoration-blue-200 decoration-2 underline-offset-4' : level === 1 ? 'font-semibold text-slate-700' : 'text-slate-600'}`}>
-                      {/* 根据文本内容显示图标 */}
-                      {row.department.includes('US') && <span className="mr-1.5">🇺🇸</span>}
-                      {row.department.includes('UK') && <span className="mr-1.5">🇬🇧</span>}
-                      {row.department.includes('DE') && <span className="mr-1.5">🇩🇪</span>}
-                      {row.department.includes('JP') && <span className="mr-1.5">🇯🇵</span>}
-                      {row.department.includes('FR') && <span className="mr-1.5">🇫🇷</span>}
-                      {row.department.includes('CA') && <span className="mr-1.5">🇨🇦</span>}
-                      {row.department.includes('课') && level === 0 && <span className="mr-1.5">🏢</span>}
-                      {row.department}
+                      {/* 🔧 修复7：核心！国家/部门判断加兜底，彻底解决includes报错 */}
+                      {deptName.includes('US') && <span className="mr-1.5">🇺🇸</span>}
+                      {deptName.includes('UK') && <span className="mr-1.5">🇬🇧</span>}
+                      {deptName.includes('DE') && <span className="mr-1.5">🇩🇪</span>}
+                      {deptName.includes('JP') && <span className="mr-1.5">🇯🇵</span>}
+                      {deptName.includes('FR') && <span className="mr-1.5">🇫🇷</span>}
+                      {deptName.includes('CA') && <span className="mr-1.5">🇨🇦</span>}
+                      {deptName.includes('课') && level === 0 && <span className="mr-1.5">🏢</span>}
+                      {deptName}
                     </span>
                   </div>
                 ) : (
@@ -209,7 +218,7 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
             );
           })}
         </tr>
-        {isExpanded && row.subRows?.map(subRow => renderRow(subRow))}
+        {isExpanded && row?.subRows?.map(subRow => renderRow(subRow))}
       </React.Fragment>
     );
   };
@@ -220,14 +229,14 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
         <table className="w-full text-sm border-collapse table-fixed min-w-[2400px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-slate-700">
-              {groups.map((group, idx) => (
+              {safeGroups.map((group, idx) => (
                 <th key={idx} colSpan={group.columns.length} className={`p-2 border-r border-slate-200 font-semibold text-center text-[10px] uppercase tracking-wider ${group.bgColor || 'bg-slate-50'}`}>
                   {group.title}
                 </th>
               ))}
             </tr>
             <tr className="bg-slate-100 border-b border-slate-200 text-slate-600">
-              {groups.flatMap(g => g.columns).map((col, idx) => (
+              {safeGroups.flatMap(g => g.columns).map((col, idx) => (
                 <th 
                   key={idx} 
                   onClick={() => col.sortable && handleSort(col.key)} 
