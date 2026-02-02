@@ -120,7 +120,6 @@ const generateAccountSubRows = (parentName: string, level: number, type: string)
   }));
 };
 
-// -------------------------------------------------------------------------
 // 国家站点视角 (Site Perspective) - 四级扩展: 部门 -> 站点国家 -> 人名 -> 账号
 // -------------------------------------------------------------------------
 const generateSitePerspectiveData = (type: 'profit' | 'order' | 'listing' | 'conversion') => {
@@ -141,7 +140,14 @@ const generateSitePerspectiveData = (type: 'profit' | 'order' | 'listing' | 'con
       level: 1,
       headcountOrAccounts: 3 * 2,
       ...getRaw(3),
+      // 修复的核心：补全人名level:2的完整结构，复用账号生成方法
       subRows: STAFF_NAMES.slice(0, 3).map(staff => ({
         department: staff,
         level: 2,
-        headcountOr
+        headcountOrAccounts: 2, // 每个人名对应2个账号，数值规律统一
+        ...getRaw(0.4), // 数据量级和账号层一致，避免数据断层
+        subRows: generateAccountSubRows(staff, 3, type) // 复用你封装的方法，生成账号level:3
+      }))
+    }))
+  }));
+};
