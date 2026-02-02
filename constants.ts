@@ -1,4 +1,3 @@
-
 import { TabType, ColumnGroup, TableRow } from './types';
 
 export const STAFF_NAMES = ['陈银川', '陈纯羽', '杨继昆', '彭玉仪', '赵丹婷', '吴雪茹'];
@@ -110,7 +109,7 @@ const generateRawConversionStats = (multiplier: number = 1) => {
   };
 };
 
-const generateAccountSubRows = (parentName: string, level: number, type: string): TableRow[] => {
+const generateAccountSubRows = (parentName: string, level: number, type: TabType): TableRow[] => {
   return [1, 2].map(i => ({
     department: `${parentName}-账号${i}`,
     level,
@@ -120,9 +119,8 @@ const generateAccountSubRows = (parentName: string, level: number, type: string)
   }));
 };
 
-// 国家站点视角 (Site Perspective) - 四级扩展: 部门 -> 站点国家 -> 人名 -> 账号
-// -------------------------------------------------------------------------
-const generateSitePerspectiveData = (type: 'profit' | 'order' | 'listing' | 'conversion') => {
+// 国家站点视角 - 四级扩展: 部门 -> 站点国家 -> 人名 -> 账号
+const generateSitePerspectiveData = (type: TabType) => {
   const getRaw = (multiplier: number) => {
     if (type === 'profit') return generateRawProfitStats(multiplier);
     if (type === 'order') return generateRawOrderStats(multiplier);
@@ -140,14 +138,62 @@ const generateSitePerspectiveData = (type: 'profit' | 'order' | 'listing' | 'con
       level: 1,
       headcountOrAccounts: 3 * 2,
       ...getRaw(3),
-      // 修复的核心：补全人名level:2的完整结构，复用账号生成方法
       subRows: STAFF_NAMES.slice(0, 3).map(staff => ({
         department: staff,
         level: 2,
-        headcountOrAccounts: 2, // 每个人名对应2个账号，数值规律统一
-        ...getRaw(0.4), // 数据量级和账号层一致，避免数据断层
-        subRows: generateAccountSubRows(staff, 3, type) // 复用你封装的方法，生成账号level:3
+        headcountOrAccounts: 2,
+        ...getRaw(0.4),
+        subRows: generateAccountSubRows(staff, 3, type)
       }))
     }))
   }));
 };
+
+// 组织架构视角 - 基础数据（适配MOCK_DATA的Tab映射）
+const generateOrgPerspectiveData = (type: TabType) => {
+  // 简化的组织视角数据，和站点视角结构一致，保证DataTable组件能通用
+  return DEPARTMENTS.map(dept => ({
+    department: dept,
+    level: 0,
+    headcountOrAccounts: STAFF_NAMES.length * 2,
+    ...(type === 'profit' ? generateRawProfitStats(STAFF_NAMES.length) : type === 'order' ? generateRawOrderStats(STAFF_NAMES.length) : type === 'listing' ? generateRawListingStats(STAFF_NAMES.length) : generateRawConversionStats(STAFF_NAMES.length)),
+    subRows: STAFF_NAMES.map(staff => ({
+      department: staff,
+      level: 1,
+      headcountOrAccounts: 2,
+      ...(type === 'profit' ? generateRawProfitStats(1) : type === 'order' ? generateRawOrderStats(1) : type === 'listing' ? generateRawListingStats(1) : generateRawConversionStats(1)),
+      subRows: generateAccountSubRows(staff, 2, type),
+      isSubRow: true
+    }))
+  }));
+};
+
+// 🔴 补全缺失项1：TABS - 对应App.tsx的标签页列表，和TabType完全匹配
+export const TABS: TabType[] = [
+  TabType.SALES_PROFIT,
+  TabType.ORDER_STATS,
+  TabType.SELF_LISTING,
+  TabType.LISTING_CONVERSION
+];
+
+// 🔴 补全缺失项2：TAB_COLUMN_CONFIGS - 列配置（基础结构，你可根据需求补充具体列）
+export const TAB_COLUMN_CONFIGS: Record<TabType, ColumnGroup[]> = {
+  [TabType.SALES_PROFIT]: [{ title: '利润统计', columns: [{ key: 'department', title: '部门/员工' }, { key: 'targetProfit', title: '目标利润' }, { key: 'completedProfit', title: '完成利润' }, { key: 'profitProgress', title: '完成率(%)' }] }],
+  [TabType.ORDER_STATS]: [{ title: '订单统计', columns: [{ key: 'department', title: '部门/员工' }, { key: 'jan5Orders', title: '当日订单' }, { key: 'thisWeekOrders', title: '本周订单' }, { key: 'weekGrowthRate', title: '周增长率(%)' }] }],
+  [TabType.SELF_LISTING]: [{ title: '自铺Listing统计', columns: [{ key: 'department', title: '部门/员工' }, { key: 'selfListingCount', title: '自铺数量' }, { key: 'selfListingSales', title: '自铺销售额' }, { key: 'selfSalesRatio', title: '自铺占比(%)' }] }],
+  [TabType.LISTING_CONVERSION]: [{ title: 'Listing转化统计', columns: [{ key: 'department', title: '部门/员工' }, { key: 'totalOrders', title: '总订单' }, { key: 'totalGrowth', title: '总增长率(%)' }, { key: 'orderAsinTotalRatio', title: '出单ASIN占比(%)' }] }]
+};
+
+// 🔴 补全缺失项3：MOCK_DATA - 组织视角的各Tab数据，和App.tsx的使用逻辑匹配
+export const MOCK_DATA: Record<TabType, TableRow[]> = {
+  [TabType.SALES_PROFIT]: generateOrgPerspectiveData(TabType.SALES_PROFIT),
+  [TabType.ORDER_STATS]: generateOrgPerspectiveData(TabType.ORDER_STATS),
+  [TabType.SELF_LISTING]: generateOrgPerspectiveData(TabType.SELF_LISTING),
+  [TabType.LISTING_CONVERSION]: generateOrgPerspectiveData(TabType.LISTING_CONVERSION)
+};
+
+// ✅ 原有已补的4个站点视角mock数据
+export const SITE_PROFIT_MOCK_DATA = generateSitePerspectiveData(TabType.SALES_PROFIT);
+export const SITE_ORDER_MOCK_DATA = generateSitePerspectiveData(TabType.ORDER_STATS);
+export const SITE_LISTING_MOCK_DATA = generateSitePerspectiveData(TabType.SELF_LISTING);
+export const SITE_CONVERSION_MOCK_DATA = generateSitePerspectiveData(TabType.LISTING_CONVERSION);
