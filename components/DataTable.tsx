@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { ColumnGroup, TableRow } from '../types';
 
@@ -51,7 +52,7 @@ const TrendChart: React.FC<{ data: number[]; isMini?: boolean }> = ({ data, isMi
         return (
           <g key={i}>
             <circle cx={x} cy={y} r="5" fill="#3b82f6" stroke="white" strokeWidth="2" />
-            <text x={x} y={y - 12} textAnchor="middle" fontSize="11" fill="#334155" fontWeight="700">
+            <text x={x} y={y - 12} textAnchor="middle" fontSize="11" fill="#334155" fontWeight="700" className="tabular-nums">
               {val}
             </text>
             <text x={x} y={height - 10} textAnchor="middle" fontSize="11" fill="#64748b">
@@ -65,10 +66,6 @@ const TrendChart: React.FC<{ data: number[]; isMini?: boolean }> = ({ data, isMi
 };
 
 const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
-  // 🔧 修复1：给入参加兜底，避免App.tsx传递undefined
-  const safeGroups = groups || [];
-  const safeData = data || [];
-  
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [activeTrend, setActiveTrend] = useState<{ name: string; values: number[] } | null>(null);
@@ -93,10 +90,8 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
 
   const processedData = useMemo(() => {
     const processRows = (rows: TableRow[]): TableRow[] => {
-      // 🔧 修复2：给递归入参加兜底
-      const safeRows = rows || [];
-      const totalRow = safeRows.find(r => (r.department || '').includes('汇总'));
-      const normalRows = safeRows.filter(r => !(r.department || '').includes('汇总'));
+      const totalRow = rows.find(r => r.department === '汇总');
+      const normalRows = rows.filter(r => r.department !== '汇总');
 
       let processedNormalRows: TableRow[] = normalRows.map(row => {
         const nextLevelRows = row.subRows ? processRows(row.subRows) : [];
@@ -105,12 +100,11 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
 
       if (sortConfig && processedNormalRows.length > 0) {
         processedNormalRows.sort((a, b) => {
-          // 🔧 修复3：排序取值加可选链，避免字段不存在
-          let aValue = a?.[sortConfig.key];
-          let bValue = b?.[sortConfig.key];
+          let aValue = a[sortConfig.key];
+          let bValue = b[sortConfig.key];
 
-          const aNum = parseFloat(aValue || '');
-          const bNum = parseFloat(bValue || '');
+          const aNum = parseFloat(aValue);
+          const bNum = parseFloat(bValue);
 
           if (!isNaN(aNum) && !isNaN(bNum)) {
             aValue = aNum;
@@ -130,26 +124,25 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
       return totalRow ? [...processedNormalRows, totalRow] : processedNormalRows;
     };
 
-    return processRows(safeData);
-  }, [safeData, sortConfig]);
+    return processRows(data);
+  }, [data, sortConfig]);
 
   const formatValue = (row: TableRow, col: any) => {
-    const value = row?.[col.key];
-    const format = col?.format;
+    const value = row[col.key];
+    const format = col.format;
     
     if (format === 'trend') {
-      // 🔧 修复4：趋势图取值加可选链，更安全
       const trendData = [
-        Number(row?.['jan1Orders'] || 0),
-        Number(row?.['jan2Orders'] || 0),
-        Number(row?.['jan3Orders'] || 0),
-        Number(row?.['jan4Orders'] || 0),
-        Number(row?.['jan5Orders'] || 0)
+        Number(row['jan1Orders'] || 0),
+        Number(row['jan2Orders'] || 0),
+        Number(row['jan3Orders'] || 0),
+        Number(row['jan4Orders'] || 0),
+        Number(row['jan5Orders'] || 0)
       ];
       return (
         <div 
           className="cursor-zoom-in hover:scale-110 transition-transform flex justify-center py-1 group"
-          onClick={() => setActiveTrend({ name: row?.department || '未知', values: trendData })}
+          onClick={() => setActiveTrend({ name: row.department, values: trendData })}
         >
           <TrendChart data={trendData} />
         </div>
@@ -167,48 +160,45 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
   };
 
   const renderRow = (row: TableRow) => {
-    const deptName = row?.department || ''; // 🔧 修复5：提前兜底部门名称，避免后续重复判断
-    const is汇总 = deptName.includes('汇总');
-    const level = row?.level || 0;
-    const hasSubRows = !!row?.subRows && row.subRows.length > 0;
-    const isExpanded = expandedRows.has(deptName);
+    const is汇总 = row.department === '汇总';
+    const level = row.level || 0;
+    const hasSubRows = !!row.subRows && row.subRows.length > 0;
+    const isExpanded = expandedRows.has(row.department);
 
     return (
-      <React.Fragment key={`${deptName}-${level}`}>
+      <React.Fragment key={`${row.department}-${level}`}>
         <tr className={`${level > 0 ? 'bg-slate-50/30' : 'bg-white'} hover:bg-blue-50/50 transition-colors border-b border-slate-100`}>
-          {safeGroups.flatMap(g => g.columns).map((col, colIdx) => {
+          {groups.flatMap(g => g.columns).map((col, colIdx) => {
             const isDeptCol = col.key === 'department';
-            // 🔧 修复6：亏损列判断加可选链+兜底，避免col.header为undefined
-            const isLossCol = (col?.header || '').includes('亏损');
+            const isLossCol = col.header.includes('亏损');
             
-            const val = parseFloat(row?.[col.key] || '');
+            const val = parseFloat(row[col.key]);
             const isProfitAlarm = (col.key === 'profitRate' || col.key === 'actualProfitRate') && !isNaN(val) && val < 15;
             
             const paddingLeft = isDeptCol ? `${level * 24 + 10}px` : '10px';
 
             return (
               <td
-                key={`cell-${deptName}-${col.key}-${colIdx}`}
+                key={`cell-${row.department}-${col.key}-${colIdx}`}
                 style={isDeptCol ? { paddingLeft } : {}}
-                className={`p-2 border-r border-slate-100 truncate relative ${isDeptCol ? 'text-left' : 'text-center'} ${
+                className={`p-2 border-r border-slate-100 truncate relative tabular-nums ${isDeptCol ? 'text-left' : 'text-center'} ${
                   is汇总 ? 'font-bold text-slate-800 bg-slate-100/30' : 'text-slate-600'
-                } ${ (isLossCol || isProfitAlarm) ? 'text-red-500 font-bold' : ''} ${!isDeptCol ? 'font-mono text-xs' : ''}`}
+                } ${ (isLossCol || isProfitAlarm) ? 'text-red-600 font-semibold' : ''} ${!isDeptCol ? 'text-[11px] font-medium' : ''}`}
               >
                 {isDeptCol && hasSubRows ? (
-                  <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleRow(deptName)}>
+                  <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleRow(row.department)}>
                     <span className="text-blue-500 font-bold w-4 h-4 flex items-center justify-center border border-blue-200 rounded-sm bg-blue-50 text-[10px]">
                       {isExpanded ? '−' : '+'}
                     </span>
-                    <span className={`${level === 0 ? 'font-bold text-slate-800 underline decoration-blue-200 decoration-2 underline-offset-4' : level === 1 ? 'font-semibold text-slate-700' : 'text-slate-600'}`}>
-                      {/* 🔧 修复7：核心！国家/部门判断加兜底，彻底解决includes报错 */}
-                      {deptName.includes('US') && <span className="mr-1.5">🇺🇸</span>}
-                      {deptName.includes('UK') && <span className="mr-1.5">🇬🇧</span>}
-                      {deptName.includes('DE') && <span className="mr-1.5">🇩🇪</span>}
-                      {deptName.includes('JP') && <span className="mr-1.5">🇯🇵</span>}
-                      {deptName.includes('FR') && <span className="mr-1.5">🇫🇷</span>}
-                      {deptName.includes('CA') && <span className="mr-1.5">🇨🇦</span>}
-                      {deptName.includes('课') && level === 0 && <span className="mr-1.5">🏢</span>}
-                      {deptName}
+                    <span className={`${level === 0 ? 'font-bold text-slate-900 underline decoration-blue-200 decoration-2 underline-offset-4' : level === 1 ? 'font-semibold text-slate-800' : 'text-slate-700'}`}>
+                      {row.department.includes('US') && <span className="mr-1.5">🇺🇸</span>}
+                      {row.department.includes('UK') && <span className="mr-1.5">🇬🇧</span>}
+                      {row.department.includes('DE') && <span className="mr-1.5">🇩🇪</span>}
+                      {row.department.includes('JP') && <span className="mr-1.5">🇯🇵</span>}
+                      {row.department.includes('FR') && <span className="mr-1.5">🇫🇷</span>}
+                      {row.department.includes('CA') && <span className="mr-1.5">🇨🇦</span>}
+                      {row.department.includes('课') && level === 0 && <span className="mr-1.5">🏢</span>}
+                      {row.department}
                     </span>
                   </div>
                 ) : (
@@ -218,7 +208,7 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
             );
           })}
         </tr>
-        {isExpanded && row?.subRows?.map(subRow => renderRow(subRow))}
+        {isExpanded && row.subRows?.map(subRow => renderRow(subRow))}
       </React.Fragment>
     );
   };
@@ -229,18 +219,18 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
         <table className="w-full text-sm border-collapse table-fixed min-w-[2400px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-slate-700">
-              {safeGroups.map((group, idx) => (
-                <th key={idx} colSpan={group.columns.length} className={`p-2 border-r border-slate-200 font-semibold text-center text-[10px] uppercase tracking-wider ${group.bgColor || 'bg-slate-50'}`}>
+              {groups.map((group, idx) => (
+                <th key={idx} colSpan={group.columns.length} className={`p-2 border-r border-slate-200 font-bold text-center text-[10px] uppercase tracking-wider ${group.bgColor || 'bg-slate-50'}`}>
                   {group.title}
                 </th>
               ))}
             </tr>
             <tr className="bg-slate-100 border-b border-slate-200 text-slate-600">
-              {safeGroups.flatMap(g => g.columns).map((col, idx) => (
+              {groups.flatMap(g => g.columns).map((col, idx) => (
                 <th 
                   key={idx} 
                   onClick={() => col.sortable && handleSort(col.key)} 
-                  className={`p-2 border-r border-slate-200 font-medium text-center truncate text-[10px] transition-colors group select-none ${col.sortable ? 'cursor-pointer hover:bg-slate-200' : ''}`}
+                  className={`p-2 border-r border-slate-200 font-semibold text-center truncate text-[10px] transition-colors group select-none ${col.sortable ? 'cursor-pointer hover:bg-slate-200' : ''}`}
                 >
                   <div className="flex items-center justify-center gap-1.5">
                     <span className="truncate">{col.header}</span>
@@ -264,9 +254,9 @@ const DataTable: React.FC<DataTableProps> = ({ groups, data }) => {
       {activeTrend && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setActiveTrend(null)}>
           <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-3xl w-full relative border border-slate-200" onClick={e => e.stopPropagation()}>
-            <div className="mb-6"><h3 className="text-2xl font-black text-slate-900">{activeTrend.name} - 趋势详情</h3></div>
+            <div className="mb-6"><h3 className="text-2xl font-black text-slate-900 tracking-tight">{activeTrend.name} - 趋势详情</h3></div>
             <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200 shadow-inner"><TrendChart data={activeTrend.values} isMini={false} /></div>
-            <div className="mt-8 flex justify-end"><button className="bg-slate-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-800" onClick={() => setActiveTrend(null)}>关闭</button></div>
+            <div className="mt-8 flex justify-end"><button className="bg-slate-900 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-all active:scale-95" onClick={() => setActiveTrend(null)}>关闭</button></div>
           </div>
         </div>
       )}
