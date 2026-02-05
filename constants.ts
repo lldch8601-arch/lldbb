@@ -64,11 +64,9 @@ const generateRawListingStats = (multiplier: number = 1) => {
   const self = Math.floor(total * (0.3 + Math.random() * 0.2));
   const auto = total - self;
   
-  // 目标逻辑：一天30个，一个月按30天计为900个
-  // 结合 multiplier 以适配钻取层级（部门/站点/个人）
   const daysInMonth = 30;
   const targetSelf = Math.floor(30 * daysInMonth * multiplier); 
-  const diff = auto - targetSelf; // 自动刊登数量 - 目标自主刊登数
+  const diff = auto - targetSelf; 
   
   const autoFailed = Math.floor(auto * (Math.random() * 0.05));
   const totalSales = Math.floor((Math.random() * 500000 + 100000) * multiplier);
@@ -206,41 +204,63 @@ const genLevel2Staff = (siteName: string, type: string) => STAFF_NAMES.slice(0, 
   level: 2,
   ...getStatsByType(type, 1),
   salesTargetRank: idx + 1,
-  profitRank: idx + 2,
+  profitRank: idx + 1,
   jan5Rank: idx + 1,
   listingSalesRank: idx + 1,
+  jan5SalesRankPC: idx + 1,
+  jan5OrdersRankPC: idx + 1,
   subRows: genLevel3Accounts(name, type)
 }));
 
-const genLevel1Sites = (deptName: string, type: string) => SITES.map(site => ({
+const genLevel1Sites = (deptName: string, type: string) => SITES.map((site, idx) => ({
   department: site,
   level: 1,
   ...getStatsByType(type, 2),
+  salesTargetRank: idx + 1,
+  profitRank: idx + 1,
+  jan5Rank: idx + 1,
+  listingSalesRank: idx + 1,
+  jan5SalesRankPC: idx + 1,
+  jan5OrdersRankPC: idx + 1,
   subRows: genLevel2Staff(site, type)
 }));
 
 const generateSitePerspectiveData = (type: string): TableRow[] => {
-  return DEPARTMENTS.map(dept => ({
+  return DEPARTMENTS.map((dept, idx) => ({
     department: dept,
     level: 0,
     ...getStatsByType(type, SITES.length * 3),
+    salesTargetRank: idx + 1,
+    profitRank: idx + 1,
+    jan5Rank: idx + 1,
+    listingSalesRank: idx + 1,
+    jan5SalesRankPC: idx + 1,
+    jan5OrdersRankPC: idx + 1,
     subRows: genLevel1Sites(dept, type)
   }));
 };
 
 const generateOrgPerspectiveData = (type: string): TableRow[] => {
-  return DEPARTMENTS.map(dept => ({
+  return DEPARTMENTS.map((dept, idx) => ({
     department: dept,
     level: 0,
     ...getStatsByType(type, STAFF_NAMES.length),
-    subRows: STAFF_NAMES.map((name, idx) => ({
+    salesTargetRank: idx + 1,
+    profitRank: idx + 1,
+    jan5Rank: idx + 1,
+    listingSalesRank: idx + 1,
+    jan5SalesRankPC: idx + 1,
+    jan5OrdersRankPC: idx + 1,
+    subRows: STAFF_NAMES.map((name, sIdx) => ({
       department: name,
       level: 1,
       ...getStatsByType(type, 1),
-      salesTargetRank: idx + 1,
-      profitRank: idx + 2,
-      jan5Rank: idx + 1,
-      listingSalesRank: idx + 1,
+      salesTargetRank: sIdx + 1,
+      profitRank: sIdx + 1,
+      jan5Rank: sIdx + 1,
+      listingSalesRank: sIdx + 1,
+      jan5SalesRankPC: sIdx + 1,
+      jan5OrdersRankPC: sIdx + 1,
       subRows: genLevel3Accounts(name, type)
     }))
   }));
@@ -335,6 +355,7 @@ export const TAB_COLUMN_CONFIGS: Record<TabType, ColumnGroup[]> = {
     { title: '人效分析 (销售额)', bgColor: 'bg-indigo-50/80', columns: [
       { header: '部门人数', key: 'headcount', format: 'number' },
       { header: '1.5号人均销售额', key: 'jan5SalesPC', format: 'number' },
+      { header: '人均销售排名', key: 'jan5SalesRankPC', format: 'string', sortable: true },
       { header: '上周同天人均销售额', key: 'lastWeekSameDaySalesPC', format: 'number' },
       { header: '同比增长', key: 'jan5SalesPCGrowth', format: 'percent' },
       { header: '当周人均销售额', key: 'weekSalesPC', format: 'number' },
@@ -346,6 +367,7 @@ export const TAB_COLUMN_CONFIGS: Record<TabType, ColumnGroup[]> = {
     ]},
     { title: '人效分析 (订单)', bgColor: 'bg-emerald-50/80', columns: [
       { header: '1.5号人均订单', key: 'jan5OrdersPC', format: 'number' },
+      { header: '人均订单排名', key: 'jan5OrdersRankPC', format: 'string', sortable: true },
       { header: '上周同天人均订单', key: 'lastWeekSameDayOrdersPC', format: 'number' },
       { header: '同比增长', key: 'jan5OrdersPCGrowth', format: 'percent' },
       { header: '当周人均订单', key: 'weekOrdersPC', format: 'number' },
