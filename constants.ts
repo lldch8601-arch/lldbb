@@ -1,3 +1,4 @@
+
 import { TabType, ColumnGroup, TableRow } from './types';
 
 export const STAFF_NAMES = ['陈银川', '陈纯羽', '杨继昆', '彭玉仪', '赵丹婷', '吴雪茹'];
@@ -131,16 +132,12 @@ const generateRawConversionStats = (multiplier: number = 1) => {
     activeAsinSelfRatio: ((activeAsinSelf / Math.max(1, selfAsin)) * 100).toFixed(2),
     activeAsinAutoRatio: ((activeAsinAuto / Math.max(1, autoAsin)) * 100).toFixed(2),
     orderRateTrend: [
-      // 自主-红色：加唯一id + 兼容stroke颜色 + 加粗线宽
-      { id: 'self-order', label: '自主', data: generateTrend(50), color: '#ef4444', stroke: '#ef4444', lineWidth: 3 },
-      // 自动-蓝色：加唯一id + 兼容stroke颜色
-      { id: 'auto-order', label: '自动', data: generateTrend(35), color: '#3b82f6', stroke: '#3b82f6', lineWidth: 2 }
+      { label: '自主', data: generateTrend(50), color: '#ef4444' },
+      { label: '自动', data: generateTrend(35), color: '#3b82f6' }
     ],
     activeRateTrend: [
-      // 自主-红色：加唯一id + 兼容stroke颜色 + 加粗线宽
-      { id: 'self-active', label: '自主', data: generateTrend(30), color: '#ef4444', stroke: '#ef4444', lineWidth: 3 },
-      // 自动-蓝色：加唯一id + 兼容stroke颜色
-      { id: 'auto-active', label: '自动', data: generateTrend(15), color: '#3b82f6', stroke: '#3b82f6', lineWidth: 2 }
+      { label: '自主', data: generateTrend(30), color: '#ef4444' },
+      { label: '自动', data: generateTrend(15), color: '#3b82f6' }
     ],
     jan1Orders: Math.floor(Math.random() * 100),
     jan2Orders: Math.floor(Math.random() * 100),
